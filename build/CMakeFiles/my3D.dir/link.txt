@@ -1,0 +1,1 @@
+/usr/bin/c++  -std=c++20 CMakeFiles/my3D.dir/sample/main.cpp.o CMakeFiles/my3D.dir/opengl/glad/src/glad.c.o -o my3D  /usr/lib/x86_64-linux-gnu/libglfw.so.3.4 /usr/lib/x86_64-linux-gnu/libassimp.so.5.4.1 -lstb /usr/lib/x86_64-linux-gnu/libGLX.so /usr/lib/x86_64-linux-gnu/libOpenGL.so -lpugixml
