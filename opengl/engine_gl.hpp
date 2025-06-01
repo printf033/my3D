@@ -34,10 +34,10 @@
 #define VIEW_ASPECT_RATE (16.0f / 9.0f)
 #define VIEW_NEAR_LIMIT 0.1f
 #define VIEW_FAR_LIMIT 100.0f
-#define MOVE_SENSITIVITY 0.2f
+#define MOVE_SENSITIVITY 1.0f
 #define VIEW_SENSITIVITY 0.15f
 #define ZOOM_SENSITIVITY 3.0f
-#define KEY_SCAN_INTERVAL_us 100
+#define KEY_SCAN_DELAY_us 1000
 
 // OpenGL 4.6 core
 class Engine
@@ -55,7 +55,10 @@ class Engine
                   {
                   case Mapping_bitset::EXIT:
                       if (isPress)
+                      {
+                          world = nullptr;
                           glfwSetWindowShouldClose(window_, true);
+                      }
                       else
                           ;
                       break;
@@ -104,47 +107,55 @@ class Engine
                   case Mapping_bitset::FORWARD_1:
                       if (isPress)
                           if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getCollider("sphere").processPosMove(key, deltaTime);
+                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::BACKWARD_1:
                       if (isPress)
                           if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getCollider("sphere").processPosMove(key, deltaTime);
+                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::LEFT_1:
                       if (isPress)
                           if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getCollider("sphere").processPosMove(key, deltaTime);
+                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::RIGHT_1:
                       if (isPress)
                           if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getCollider("sphere").processPosMove(key, deltaTime);
+                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::UP_1:
                       if (isPress)
                           if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getCollider("sphere").processPosMove(key, deltaTime);
+                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::DOWN_1:
                       if (isPress)
                           if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getCollider("sphere").processPosMove(key, deltaTime);
+                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
                       break;
                   default:
                       break;
                   }
               };
+              auto curScanTime = std::chrono::high_resolution_clock::now();
+              auto lastScanTime = curScanTime;
+              auto deltaScanTime = curScanTime - lastScanTime;
+              int deltaCount = 0;
               while (!st.stop_requested())
               {
-                  auto lastScanTime = std::chrono::high_resolution_clock::now();
-                  std::this_thread::sleep_for(std::chrono::microseconds(KEY_SCAN_INTERVAL_us));
+                  std::this_thread::sleep_for(std::chrono::microseconds(KEY_SCAN_DELAY_us));
+                  curScanTime = std::chrono::high_resolution_clock::now();
+                  deltaScanTime = curScanTime - lastScanTime;
+                  lastScanTime = curScanTime;
+                  deltaCount = std::chrono::duration_cast<std::chrono::microseconds>(deltaScanTime).count();
+                  printf("round time:%dus\n", deltaCount); /////////////////////////////////////////////////////
                   if (nullptr == window_)
                       continue;
                   for (int i = 0; i < keyMapping.size(); ++i)
                       checkKey((Mapping_bitset)i, keyMapping.test(i));
                   if (nullptr != world)
-                      reinterpret_cast<Ground *>(world)->detectNcorrect(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - lastScanTime).count());
+                      reinterpret_cast<Ground *>(world)->update(deltaCount * 1e-6);
               }
           })
     {
@@ -196,8 +207,8 @@ public:
     static float nearLimit;
     static float farLimit;
     static void *world;
-    static double lastTime;
-    static double deltaTime;
+    static double lastShadeTime;
+    static double deltaShadeTime;
     static glm::vec3 front;
     static glm::vec3 up;
     static glm::vec3 right;
@@ -319,16 +330,16 @@ public:
     }
     void update() const
     {
-        double curTime = glfwGetTime();
-        deltaTime = curTime - lastTime;
-        lastTime = curTime;
+        double curShadeTime = glfwGetTime();
+        deltaShadeTime = curShadeTime - lastShadeTime;
+        lastShadeTime = curShadeTime;
         glClearColor(BACKGROUND_RED, BACKGROUND_GREEN, BACKGROUND_BLUE, BACKGROUND_ALPHA);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LESS);
         // glEnable(GL_CULL_FACE);
         // glCullFace(GL_BACK);
-        // glFrontFace(GL_CCW);
+        glFrontFace(GL_CCW);
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
     void draw(const std::string &shaderName,
@@ -388,7 +399,7 @@ public:
 private:
     void processPosMove_subduct(Mapping_bitset direction)
     {
-        float rate = moveSensitivity * deltaTime;
+        float rate = moveSensitivity * deltaShadeTime;
         switch (direction)
         {
         case Mapping_bitset::FORWARD:
@@ -415,7 +426,7 @@ private:
     }
     void processPosMove(Mapping_bitset direction)
     {
-        float rate = moveSensitivity * deltaTime;
+        float rate = moveSensitivity * deltaShadeTime;
         glm::vec3 final(0.0f, 0.0f, 0.0f);
         switch (direction)
         {
@@ -464,8 +475,8 @@ float Engine::aspect = VIEW_ASPECT_RATE;
 float Engine::nearLimit = VIEW_NEAR_LIMIT;
 float Engine::farLimit = VIEW_FAR_LIMIT;
 void *Engine::world = nullptr;
-double Engine::lastTime = 0.0;
-double Engine::deltaTime = 0.0;
+double Engine::lastShadeTime = 0.0;
+double Engine::deltaShadeTime = 0.0;
 glm::vec3 Engine::front(0.0f, 0.0f, -1.0f);
 glm::vec3 Engine::up(0.0f, 1.0f, 0.0f);
 glm::vec3 Engine::right(1.0f, 0.0f, 0.0f);

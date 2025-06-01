@@ -5,6 +5,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <glad/glad.h>
+#include "octree.hpp"
 
 #define MAX_BONE_INFLUENCE 4
 
@@ -28,30 +29,33 @@ struct Texture
 
 class Mesh
 {
+    // base data
     std::vector<Vertex> vertices_;
     std::vector<GLuint> indices_;
     std::vector<Texture> textures_;
-    GLuint VAO_, VBO_, EBO_;
     // AABB attributes
-    glm::vec3 min_;
-    glm::vec3 max_;
-    std::string name_; // debug
+    Octree octree_;
+    // shade attributes
+    GLuint VAO_;
+    GLuint VBO_;
+    GLuint EBO_;
+
+    // debug
+    std::string name_; ////////////////////////////////////////////////////////del
 
 public:
-    Mesh(const std::vector<Vertex> &vertices,
-         const std::vector<unsigned int> &indices,
-         const std::vector<Texture> &textures,
-         const glm::vec3 &min,
-         const glm::vec3 &max,
+    Mesh(std::vector<Vertex> &&vertices,
+         std::vector<unsigned int> &&indices,
+         std::vector<Texture> &&textures,
+         Octree &&octree,
          const std::string &name)
-        : vertices_(vertices),
-          indices_(indices),
-          textures_(textures),
+        : vertices_(std::move(vertices)),
+          indices_(std::move(indices)),
+          textures_(std::move(textures)),
+          octree_(std::move(octree)),
           VAO_(0),
           VBO_(0),
           EBO_(0),
-          min_(min),
-          max_(max),
           name_(name)
     {
         glGenVertexArrays(1, &VAO_);
@@ -84,18 +88,15 @@ public:
         : vertices_(std::move(other.vertices_)),
           indices_(std::move(other.indices_)),
           textures_(std::move(other.textures_)),
+          octree_(std::move(other.octree_)),
           VAO_(other.VAO_),
           VBO_(other.VBO_),
           EBO_(other.EBO_),
-          min_(other.min_),
-          max_(other.max_),
           name_(std::move(other.name_))
     {
         other.VAO_ = 0;
         other.VBO_ = 0;
         other.EBO_ = 0;
-        other.min_ = glm::vec3(0.0f);
-        other.max_ = glm::vec3(0.0f);
     }
     Mesh &operator=(Mesh &&other)
     {
@@ -128,8 +129,7 @@ public:
     inline const std::vector<Vertex> &getVertices() const { return vertices_; }
     inline const std::vector<GLuint> &getIndices() const { return indices_; }
     inline const std::vector<Texture> &getTextures() const { return textures_; }
-    inline const glm::vec3 &getMin() const { return min_; }
-    inline const glm::vec3 &getMax() const { return max_; }
+    inline const Octree &getOctree() const { return octree_; }
     inline const std::string &getName() const { return name_; }
 
 private:
@@ -138,11 +138,10 @@ private:
         std::swap(vertices_, other.vertices_);
         std::swap(indices_, other.indices_);
         std::swap(textures_, other.textures_);
+        std::swap(octree_, other.octree_);
         std::swap(VAO_, other.VAO_);
         std::swap(VBO_, other.VBO_);
         std::swap(EBO_, other.EBO_);
-        std::swap(min_, other.min_);
-        std::swap(max_, other.max_);
         std::swap(name_, other.name_);
     }
 };

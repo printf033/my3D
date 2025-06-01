@@ -12,6 +12,7 @@
 #include <stb/stb_image.h>
 #include "mesh_gl.hpp"
 #include "converter.hpp"
+#include "octree.hpp"
 
 struct Hierarchy
 {
@@ -24,18 +25,16 @@ struct Hierarchy
 class Model
 {
     std::filesystem::path path_;
-    Hierarchy *root_;
     std::vector<Mesh> meshes_;
     std::vector<Texture> texturesLoaded_;
+    // animation attributes
     std::unordered_map<std::string, Hierarchy> bonesLoaded_;
+    Hierarchy *root_ = nullptr;
     // AABB attributes
-    glm::vec3 min_ = glm::vec3(std::nanf(""));
-    glm::vec3 max_ = glm::vec3(std::nanf(""));
+    Octree octree_;
 
 public:
-    Model(const std::filesystem::path &path)
-        : path_(path),
-          root_(nullptr)
+    Model(const std::filesystem::path &path) : path_(path)
     {
         Assimp::Importer importer;
         const aiScene *paiScene = importer.ReadFile(path_,
@@ -48,7 +47,12 @@ public:
         assert(paiScene != nullptr &&
                !(paiScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
                paiScene->mRootNode != nullptr);
-        processNode(root_, paiScene->mRootNode, paiScene, min_, max_);
+        glm::vec3 modelMax(std::nanf(""));
+        glm::vec3 modelMin(std::nanf(""));
+        processNodes(paiScene->mRootNode, paiScene, root_, modelMin, modelMax);
+        octree_ = Octree(AABB(modelMin, modelMax));
+        for (auto &mesh : meshes_)
+            octree_.insert(AABB(mesh.getOctree().getMin(), mesh.getOctree().getMax(), &mesh));
     }
     ~Model()
     {
@@ -66,8 +70,7 @@ public:
         std::swap(meshes_, other.meshes_);
         std::swap(texturesLoaded_, other.texturesLoaded_);
         std::swap(bonesLoaded_, other.bonesLoaded_);
-        std::swap(min_, other.min_);
-        std::swap(max_, other.max_);
+        std::swap(octree_, other.octree_);
     }
     Model(const Model &) = delete;
     Model &operator=(const Model &) = delete;
@@ -77,8 +80,7 @@ public:
           meshes_(std::move(other.meshes_)),
           texturesLoaded_(std::move(other.texturesLoaded_)),
           bonesLoaded_(std::move(other.bonesLoaded_)),
-          min_(other.min_),
-          max_(other.max_)
+          octree_(std::move(other.octree_))
     {
         other.root_ = nullptr;
     }
@@ -92,11 +94,11 @@ public:
     inline std::unordered_map<std::string, Hierarchy> &getBonesLoaded() { return bonesLoaded_; }
     inline Hierarchy *getRootHierarchy() const { return root_; }
     inline const std::vector<Mesh> &getMeshes() const { return meshes_; }
-    inline const glm::vec3 &getMin() const { return min_; }
-    inline const glm::vec3 &getMax() const { return max_; }
+    inline const Octree &getOctree() const { return octree_; }
 
 private:
-    void processNode(Hierarchy *&node, aiNode *paiNode, const aiScene *paiScene, glm::vec3 &min, glm::vec3 &max)
+    void processNodes(aiNode *paiNode, const aiScene *paiScene,
+                      Hierarchy *&node, glm::vec3 &modelMin, glm::vec3 &modelMax)
     {
         assert(paiNode != nullptr);
         assert(paiScene != nullptr);
@@ -109,28 +111,28 @@ private:
         node = &bonesLoaded_.at(nodeName);
         for (unsigned int i = 0; i < paiNode->mNumMeshes; ++i)
         {
-            aiMesh *paiMesh = paiScene->mMeshes[paiNode->mMeshes[i]];
+            auto paiMesh = paiScene->mMeshes[paiNode->mMeshes[i]];
             meshes_.push_back(processMesh(paiMesh, paiScene));
-            if (std::isnan(min.x))
+            if (std::isnan(modelMin.x))
             {
-                min = meshes_[0].getMin();
-                max = meshes_[0].getMax();
+                modelMin = meshes_[0].getOctree().getMin();
+                modelMax = meshes_[0].getOctree().getMax();
             }
             else
             {
-                min.x = std::min(min.x, meshes_[i].getMin().x);
-                min.y = std::min(min.y, meshes_[i].getMin().y);
-                min.z = std::min(min.z, meshes_[i].getMin().z);
-                max.x = std::max(max.x, meshes_[i].getMax().x);
-                max.y = std::max(max.y, meshes_[i].getMax().y);
-                max.z = std::max(max.z, meshes_[i].getMax().z);
+                modelMin.x = std::min(modelMin.x, meshes_.back().getOctree().getMin().x);
+                modelMin.y = std::min(modelMin.y, meshes_.back().getOctree().getMin().y);
+                modelMin.z = std::min(modelMin.z, meshes_.back().getOctree().getMin().z);
+                modelMax.x = std::max(modelMax.x, meshes_.back().getOctree().getMax().x);
+                modelMax.y = std::max(modelMax.y, meshes_.back().getOctree().getMax().y);
+                modelMax.z = std::max(modelMax.z, meshes_.back().getOctree().getMax().z);
             }
         }
         bonesLoaded_.at(nodeName).children.reserve(paiNode->mNumChildren);
         for (unsigned int i = 0; i < paiNode->mNumChildren; ++i)
         {
             Hierarchy *child = nullptr;
-            processNode(child, paiNode->mChildren[i], paiScene, min, max);
+            processNodes(paiNode->mChildren[i], paiScene, child, modelMin, modelMax);
             bonesLoaded_.at(nodeName).children.push_back(child);
         }
     }
@@ -138,31 +140,34 @@ private:
     {
         assert(paiMesh != nullptr);
         assert(paiScene != nullptr);
-        glm::vec3 min;
-        glm::vec3 max;
-        std::vector<Vertex> vertices = processVertices(paiMesh, min, max);
-        std::vector<unsigned int> indices = processIndices(paiMesh);
-        std::vector<Texture> textures = processTextures(paiMesh, paiScene);
-        return Mesh(vertices, indices, textures, min, max, paiMesh->mName.C_Str());
+        std::vector<Vertex> vertices;
+        std::vector<unsigned int> indices;
+        Octree octree = processTriangles(paiMesh, vertices, indices);
+        return Mesh(std::move(vertices),
+                    std::move(indices),
+                    processTextures(paiMesh, paiScene),
+                    std::move(octree),
+                    paiMesh->mName.C_Str());
     }
-    std::vector<Vertex> processVertices(aiMesh *paiMesh, glm::vec3 &min, glm::vec3 &max)
+    Octree processTriangles(aiMesh *paiMesh, std::vector<Vertex> &vertices, std::vector<unsigned int> &indices)
     {
         assert(paiMesh != nullptr);
-        std::vector<Vertex> vertices;
+        glm::vec3 meshMax;
+        glm::vec3 meshMin;
         vertices.resize(paiMesh->mNumVertices);
         for (unsigned int i = 0; i < paiMesh->mNumVertices; ++i)
         {
             vertices[i].position = Converter::getGLMVec(paiMesh->mVertices[i]);
             if (i == 0)
-                min = max = vertices[i].position;
+                meshMin = meshMax = vertices[i].position;
             else
             {
-                min.x = std::min(min.x, vertices[i].position.x);
-                min.y = std::min(min.y, vertices[i].position.y);
-                min.z = std::min(min.z, vertices[i].position.z);
-                max.x = std::max(max.x, vertices[i].position.x);
-                max.y = std::max(max.y, vertices[i].position.y);
-                max.z = std::max(max.z, vertices[i].position.z);
+                meshMin.x = std::min(meshMin.x, vertices[i].position.x);
+                meshMin.y = std::min(meshMin.y, vertices[i].position.y);
+                meshMin.z = std::min(meshMin.z, vertices[i].position.z);
+                meshMax.x = std::max(meshMax.x, vertices[i].position.x);
+                meshMax.y = std::max(meshMax.y, vertices[i].position.y);
+                meshMax.z = std::max(meshMax.z, vertices[i].position.z);
             }
             if (paiMesh->HasNormals())
                 vertices[i].normal = Converter::getGLMVec(paiMesh->mNormals[i]);
@@ -210,32 +215,46 @@ private:
                     }
             }
         }
-        for (auto &vertex : vertices) // 归一化权重（有无必要
-        {
-            float totalWeight = 0.0f;
-            for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
-                if (vertex.boneIDs[i] != -1)
-                    totalWeight += vertex.weights[i];
-                else
-                    break;
-            if (totalWeight > 0.0f)
-                for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
-                    if (vertex.boneIDs[i] != -1)
-                        vertex.weights[i] /= totalWeight;
-                    else
-                        break;
-        }
-        return vertices;
-    }
-    std::vector<unsigned int> processIndices(aiMesh *paiMesh)
-    {
-        assert(paiMesh != nullptr);
-        std::vector<unsigned int> indices;
+        // for (auto &vertex : vertices)
+        // {
+        //     float totalWeight = 0.0f;
+        //     for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
+        //         if (vertex.boneIDs[i] != -1)
+        //             totalWeight += vertex.weights[i];
+        //         else
+        //             break;
+        //     if (totalWeight > 0.0f)
+        //         for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
+        //             if (vertex.boneIDs[i] != -1)
+        //                 vertex.weights[i] /= totalWeight;
+        //             else
+        //                 break;
+        // }
         indices.reserve(paiMesh->mNumFaces * 3);
+        Octree octree(AABB(meshMin, meshMax));
+        glm::vec3 TriangleMax;
+        glm::vec3 TriangleMin;
         for (unsigned int i = 0; i < paiMesh->mNumFaces; ++i)
-            for (unsigned int j = 0; j < paiMesh->mFaces[i].mNumIndices; ++j)
-                indices.push_back(paiMesh->mFaces[i].mIndices[j]);
-        return indices;
+        {
+            for (unsigned int j = 0; j < 3; ++j)
+            {
+                auto idx = paiMesh->mFaces[i].mIndices[j];
+                indices.push_back(idx);
+                if (j == 0)
+                    TriangleMin = TriangleMax = vertices[idx].position;
+                else
+                {
+                    TriangleMin.x = std::min(TriangleMin.x, vertices[idx].position.x);
+                    TriangleMin.y = std::min(TriangleMin.y, vertices[idx].position.y);
+                    TriangleMin.z = std::min(TriangleMin.z, vertices[idx].position.z);
+                    TriangleMax.x = std::max(TriangleMax.x, vertices[idx].position.x);
+                    TriangleMax.y = std::max(TriangleMax.y, vertices[idx].position.y);
+                    TriangleMax.z = std::max(TriangleMax.z, vertices[idx].position.z);
+                }
+            }
+            octree.insert(AABB(TriangleMin, TriangleMax, indices.data() + i * 3));
+        }
+        return std::move(octree);
     }
     std::vector<Texture> processTextures(aiMesh *paiMesh, const aiScene *paiScene)
     {
