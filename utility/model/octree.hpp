@@ -200,6 +200,24 @@ public:
         assert(root_);
         return AABB(root_->min + position, root_->max + position, root_->where);
     }
+    inline AABB getDeltaAABB(const glm::vec3 &position, const glm::vec3 &prePosition) const
+    {
+        assert(root_);
+        AABB deltaAABB(root_->min + position, root_->max + position, root_->where);
+        if (prePosition.x < 0.0f)
+            deltaAABB.min.x += prePosition.x;
+        else
+            deltaAABB.max.x += prePosition.x;
+        if (prePosition.y < 0.0f)
+            deltaAABB.min.y += prePosition.y;
+        else
+            deltaAABB.max.y += prePosition.y;
+        if (prePosition.z < 0.0f)
+            deltaAABB.min.z += prePosition.z;
+        else
+            deltaAABB.max.z += prePosition.z;
+        return deltaAABB;
+    }
     inline void print() const
     {
         assert(root_);

@@ -23,14 +23,14 @@ int main()
                      std::filesystem::current_path() / "../opengl/glsl/anim_fs",
                      std::filesystem::current_path() / "../opengl/glsl/anim_gs");
     Ground ground(Animator(Model(std::filesystem::current_path() / "../resources/terrains/boxes/boxes.fbx")));
-    Engine::world = &ground;
-    ground.addSoul("sphere",
-                   Soul(Animator(Model(std::filesystem::current_path() / "../resources/objects/sphere/sphere.fbx"))));
-    // ground.addSoul("cube",
-    //                Soul(Animator(Model(std::filesystem::current_path() / "../resources/objects/cube/cube.fbx"))));
-    // engine.addDeliver("spin", ground.getSoul("cube").myTransforms());
-    auto &sphere = ground.getSoul("sphere");
-    // auto &cube = ground.getSoul("cube");
+    Engine::interactor = &ground;
+    ground.addCollider("sphere",
+                   Collider(Animator(Model(std::filesystem::current_path() / "../resources/objects/sphere/sphere.fbx"))));
+    // ground.addCollider("cube",
+    //                Collider(Animator(Model(std::filesystem::current_path() / "../resources/objects/cube/cube.fbx"))));
+    // engine.addDeliver("spin", ground.getCollider("cube").myTransforms());
+    auto &sphere = ground.getCollider("sphere");
+    // auto &cube = ground.getCollider("cube");
     while (engine.isRunning())
     {
         engine.update();

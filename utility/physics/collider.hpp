@@ -1,5 +1,5 @@
-#ifndef SOUL_HPP
-#define SOUL_HPP
+#ifndef COLLIDER_HPP
+#define COLLIDER_HPP
 
 #include "animator.hpp"
 #include "mapping_gl.hpp"
@@ -11,7 +11,13 @@
 #define SOUL_INNER_ACCELERATION_REDUCTION_RATE 0.99f
 #define SOUL_MAX_INNER_ACCELERATION 15.0f
 
-class Soul : public Animator // 记得加个mass
+struct physicalProperties
+{
+    float mass = 1.0f;
+};
+
+// Cuboid
+class Collider : public Animator
 {
     glm::vec3 position_;
     glm::vec3 front_ = glm::vec3(0.0f, 0.0f, -1.0f);
@@ -20,22 +26,38 @@ class Soul : public Animator // 记得加个mass
     glm::vec3 velocity_ = glm::vec3(0.0f);
     glm::vec3 innerAcceleration_ = glm::vec3(0.0f);
     glm::vec3 outerAcceleration_ = glm::vec3(0.0f);
+    physicalProperties physicalProperties_;
 
 public:
-    Soul(Animator &&entity,
-         float x = SOUL_POSITION_X,
-         float y = SOUL_POSITION_Y,
-         float height = SOUL_POSITION_H)
+    Collider(Animator &&entity,
+             float x = SOUL_POSITION_X,
+             float y = SOUL_POSITION_Y,
+             float height = SOUL_POSITION_H,
+             const physicalProperties &physclPrprts = physicalProperties())
         : Animator(std::move(entity)),
-          position_(x, height, y) {}
-    Soul(Animator &&entity,
-         const glm::mat4 &globalMat)
+          position_(x, height, y),
+          physicalProperties_(physclPrprts) {}
+    Collider(Animator &&entity,
+             const glm::mat4 &globalMat,
+             const physicalProperties &physclPrprts = physicalProperties())
         : Animator(std::move(entity)),
-          position_(glm::vec3(globalMat[3][0], globalMat[3][1], globalMat[3][2])) {}
-    ~Soul() = default;
-    Soul(const Soul &) = delete;
-    Soul &operator=(const Soul &) = delete;
-    Soul(Soul &&other)
+          position_(glm::vec3(globalMat[3][0], globalMat[3][1], globalMat[3][2])),
+          physicalProperties_(physclPrprts) {}
+    ~Collider() = default;
+    void swap(Collider &other)
+    {
+        Animator::swap(other);
+        std::swap(position_, other.position_);
+        std::swap(front_, other.front_);
+        std::swap(up_, other.up_);
+        std::swap(right_, other.right_);
+        std::swap(velocity_, other.velocity_);
+        std::swap(innerAcceleration_, other.innerAcceleration_);
+        std::swap(outerAcceleration_, other.outerAcceleration_);
+    }
+    Collider(const Collider &) = delete;
+    Collider &operator=(const Collider &) = delete;
+    Collider(Collider &&other)
         : Animator(std::move(other)),
           position_(other.position_),
           front_(other.front_),
@@ -43,7 +65,8 @@ public:
           right_(other.right_),
           velocity_(other.velocity_),
           innerAcceleration_(other.innerAcceleration_),
-          outerAcceleration_(other.outerAcceleration_)
+          outerAcceleration_(other.outerAcceleration_),
+          physicalProperties_(other.physicalProperties_)
     {
         other.position_ = glm::vec3(0.0f);
         other.front_ = glm::vec3(0.0f);
@@ -52,11 +75,12 @@ public:
         other.velocity_ = glm::vec3(0.0f);
         other.innerAcceleration_ = glm::vec3(0.0f);
         other.outerAcceleration_ = glm::vec3(0.0f);
+        other.physicalProperties_ = physicalProperties();
     }
-    Soul &operator=(Soul &&other)
+    Collider &operator=(Collider &&other)
     {
         if (this != &other)
-            Soul(std::move(other)).swap(*this);
+            Collider(std::move(other)).swap(*this);
         return *this;
     }
     inline glm::mat4 getGlobalMat() const
@@ -71,6 +95,7 @@ public:
     inline glm::vec3 &myVelocity() { return velocity_; }
     inline glm::vec3 &myOuterAcceleration() { return outerAcceleration_; }
     inline glm::vec3 &myInnerAcceleration() { return innerAcceleration_; }
+    inline float getMass() { return physicalProperties_.mass; }
     inline void print() const
     {
         std::cout << "\n位置\nx:" << position_.x
@@ -140,19 +165,40 @@ public:
         if (glm::length(innerAcceleration_) > 0.0f)
             innerAcceleration_ *= SOUL_INNER_ACCELERATION_REDUCTION_RATE;
     }
+};
 
-private:
-    void swap(Soul &other)
+// sphere
+class Collider_sphere : public Collider
+{
+    float radius_;
+
+public:
+    Collider_sphere(Collider &&entity,
+                    float radius)
+        : Collider(std::move(entity)),
+          radius_(radius) {}
+    ~Collider_sphere() = default;
+    void swap(Collider_sphere &other)
     {
-        Animator::swap(other);
-        std::swap(position_, other.position_);
-        std::swap(front_, other.front_);
-        std::swap(up_, other.up_);
-        std::swap(right_, other.right_);
-        std::swap(velocity_, other.velocity_);
-        std::swap(innerAcceleration_, other.innerAcceleration_);
-        std::swap(outerAcceleration_, other.outerAcceleration_);
+        Collider::swap(other);
+        std::swap(radius_, other.radius_);
     }
+    Collider_sphere(const Collider_sphere &) = delete;
+    Collider_sphere &operator=(const Collider_sphere &) = delete;
+    Collider_sphere(Collider_sphere &&other)
+        : Collider(std::move(other)),
+          radius_(other.radius_)
+    {
+        other.radius_ = 0.0f;
+    }
+    Collider_sphere &operator=(Collider_sphere &&other)
+    {
+        if (this != &other)
+            Collider_sphere(std::move(other)).swap(*this);
+        return *this;
+    }
+    inline float getRadius() const { return radius_; }
+    inline const glm::vec3 &getCentre() const { return getOctree().getCentre(); }
 };
 
 #endif

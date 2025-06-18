@@ -3,68 +3,54 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
-#include "soul.hpp"
+#include "collider.hpp"
 
 #define DECAY_RATE 0.9f // 为了简化，所有mesh的动量衰减系数都一样
+#define FRICTION_RATE 0.9f
 
 class Ground : public Animator
 {
-    std::unordered_map<std::string, Soul> souls_;
+    std::unordered_map<std::string, Collider> colliders_;
     float precision_ = 0.1f;
 
 public:
     Ground(Animator &&entity) : Animator(std::move(entity)) {}
-    ~Ground()
-    {
-        souls_.clear();
-    }
+    ~Ground() { colliders_.clear(); }
     Ground(const Ground &) = delete;
     Ground &operator=(const Ground &) = delete;
     Ground(Ground &&) = delete;
     Ground &operator=(Ground &&) = delete;
-    inline void addSoul(const std::string &name, Soul &&soul) { souls_.emplace(name, std::move(soul)); }
-    inline Soul &getSoul(const std::string &name) { return souls_.at(name); }
+    inline void addCollider(const std::string &name, Collider &&collider) { colliders_.emplace(name, std::move(collider)); }
+    inline Collider &getCollider(const std::string &name) { return colliders_.at(name); }
     void update(float deltaTime) // (s)
     {
         // 所有检测对象都有的力
-        auto gravity = Ground::gravityAcc();
-        for (auto &it : souls_)
+        auto g = Ground::gravityAcc();
+        for (auto &it : colliders_)
         {
-            // 简化，质量都为单位1
-            auto &soul = it.second;
+            auto &collider = it.second;
             // 存在就会有的力
-            soul.myOuterAcceleration() = gravity;
-            // soul.myOuterAcceleration() += buoyancy(rho, V, glm::length(gravity), gravity) / mass;
+            collider.myOuterAcceleration() = g;
+            // collider.myOuterAcceleration() += buoyancy(1.0f, 1.0f, g) / collider.getMass();
             // 运动就会有的力
-            // soul.myOuterAcceleration() += resistance(C, soul.myVelocity()) / mass;
+            collider.myOuterAcceleration() += resistance(0.1f, collider.myVelocity()) / collider.getMass();
             // 碰撞就会有的力
-            glm::vec3 preDeltaPosition = (soul.myInnerAcceleration() + soul.myOuterAcceleration()) * deltaTime * deltaTime;
-            AABB deltaAABB = soul.getOctree().getGlobalAABB(soul.myPosition());
-            if (preDeltaPosition.x < 0.0f)
-                deltaAABB.min.x += preDeltaPosition.x;
-            else
-                deltaAABB.max.x += preDeltaPosition.x;
-            if (preDeltaPosition.y < 0.0f)
-                deltaAABB.min.y += preDeltaPosition.y;
-            else
-                deltaAABB.max.y += preDeltaPosition.y;
-            if (preDeltaPosition.z < 0.0f)
-                deltaAABB.min.z += preDeltaPosition.z;
-            else
-                deltaAABB.max.z += preDeltaPosition.z;
+            auto v0 = collider.myVelocity();
+            auto v = v0 + (collider.myInnerAcceleration() + collider.myOuterAcceleration()) * deltaTime;
+            glm::vec3 prePosition = (v0 + v) * deltaTime * 0.5f;
+            AABB deltaAABB = collider.getOctree().getDeltaAABB(collider.myPosition(), prePosition);
             for (auto &aabb : getOctree().query(deltaAABB))
-                collidingOffset(*((Mesh *)aabb.where), soul);
-            soul.myVelocity() += (soul.myInnerAcceleration() + soul.myOuterAcceleration()) * deltaTime;
-            soul.myPosition() += soul.myVelocity() * deltaTime;
-            soul.processDecay();
-            soul.print(); ////////////////////////////////////////////////////////////////////////
+                collidingOffset(collider, aabb, deltaAABB);
+            collider.myVelocity() += (collider.myInnerAcceleration() + collider.myOuterAcceleration()) * deltaTime;
+            collider.myPosition() += collider.myVelocity() * deltaTime;
+            collider.processDecay();
+            collider.print(); ////////////////////////////////////////////////////////////////////////
         }
     }
 
 private:
     // 返回所受地球重力加速度
-    inline glm::vec3
-    gravityAcc() const
+    inline glm::vec3 gravityAcc() const
     {
         return glm::vec3(.0f, -9.8f, .0f);
     }
@@ -88,14 +74,53 @@ private:
             resistanceMag *= speed;
         return -glm::normalize(v) * resistanceMag;
     }
-    void collidingOffset(const Mesh &mesh, Soul &soul)
+    void collidingOffset(Collider &collider, const AABB &aabb, const AABB &deltaAABB)
     {
-        soul.myOuterAcceleration() = glm::vec3(0.0f);
-        soul.myVelocity() = -soul.myVelocity();
+        const Mesh &mesh = *reinterpret_cast<Mesh *>(aabb.where);
+        for (auto &triangle : mesh.getOctree().query(deltaAABB))
+        {
+            auto p = reinterpret_cast<GLuint *>(triangle.where);
+            auto &v0 = mesh.getVertices()[*p];
+            auto &v1 = mesh.getVertices()[*(p + 1)];
+            auto &v2 = mesh.getVertices()[*(p + 2)];
+            auto edge1 = v1.position - v0.position;
+            auto edge2 = v2.position - v0.position;
+            auto normal = glm::normalize(glm::cross(edge1, edge2));
+            auto iacc = glm::dot(normal, collider.myInnerAcceleration());
+            auto oacc = glm::dot(normal, collider.myOuterAcceleration());
+            auto vel = glm::dot(normal, collider.myVelocity());
+            glm::vec3 v_perpendicular = collider.myVelocity() - vel * normal;
+            glm::vec3 frictionDir = glm::vec3(0.0f);
+            if (glm::length2(v_perpendicular) > 1e-6f)
+                frictionDir = -glm::normalize(v_perpendicular);
+            if (oacc < 0.0f)
+            {
+                collider.myOuterAcceleration() += glm::abs(oacc) * FRICTION_RATE * frictionDir;
+                collider.myOuterAcceleration() -= oacc * normal;
+            }
+            if (iacc < 0.0f)
+            {
+                collider.myOuterAcceleration() += glm::abs(iacc) * FRICTION_RATE * frictionDir;
+                collider.myInnerAcceleration() -= iacc * normal;
+            }
+            if (vel < 0.0f)
+                collider.myVelocity() -= (1.0f + DECAY_RATE) * vel * normal;
+        }
     }
-    void collidingOffset(const Mesh &mesh, Soul &soul, const AABB &deltaAABB)
+    void collidingOffset(Collider_sphere &collider, const Mesh &mesh, const AABB &deltaAABB)
     {
-       
+        for (auto &aabb : mesh.getOctree().query(deltaAABB)) // capsule
+        {
+            auto p = reinterpret_cast<GLuint *>(aabb.where);
+            auto &v0 = mesh.getVertices()[*p];
+            auto &v1 = mesh.getVertices()[*(p + 1)];
+            auto &v2 = mesh.getVertices()[*(p + 2)];
+            auto edge1 = v1.position - v0.position;
+            auto edge2 = v2.position - v0.position;
+            auto normal = glm::normalize(glm::cross(edge1, edge2));
+            glm::vec2 intersection;
+            float distance = 0.0f;
+        }
     }
 };
 

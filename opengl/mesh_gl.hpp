@@ -45,7 +45,7 @@ class Mesh
 
 public:
     Mesh(std::vector<Vertex> &&vertices,
-         std::vector<unsigned int> &&indices,
+         std::vector<GLuint> &&indices,
          std::vector<Texture> &&textures,
          Octree &&octree,
          const std::string &name)

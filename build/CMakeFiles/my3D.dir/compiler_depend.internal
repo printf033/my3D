@@ -93,8 +93,8 @@ CMakeFiles/my3D.dir/sample/main.cpp.o
  /home/aaa/code/myproj/my3D/utility/mylog/inc/logMessage.hpp
  /home/aaa/code/myproj/my3D/utility/mylog/inc/logger.hpp
  /home/aaa/code/myproj/my3D/utility/mylog/inc/timestamp.hpp
+ /home/aaa/code/myproj/my3D/utility/physics/collider.hpp
  /home/aaa/code/myproj/my3D/utility/physics/ground.hpp
- /home/aaa/code/myproj/my3D/utility/physics/soul.hpp
  /usr/include/GLFW/glfw3.h
  /usr/include/alloca.h
  /usr/include/asm-generic/bitsperlong.h

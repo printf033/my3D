@@ -9,7 +9,6 @@ struct AABB
     glm::vec3 max;
     glm::vec3 centre;
     glm::vec3 size;
-    // where am I
     void *where;
 
     AABB(const glm::vec3 &min,

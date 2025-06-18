@@ -56,7 +56,7 @@ class Engine
                   case Mapping_bitset::EXIT:
                       if (isPress)
                       {
-                          world = nullptr;
+                          interactor = nullptr;
                           glfwSetWindowShouldClose(window_, true);
                       }
                       else
@@ -106,33 +106,33 @@ class Engine
                       break;
                   case Mapping_bitset::FORWARD_1:
                       if (isPress)
-                          if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
+                          if (nullptr != interactor)
+                              reinterpret_cast<Ground *>(interactor)->getCollider("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::BACKWARD_1:
                       if (isPress)
-                          if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
+                          if (nullptr != interactor)
+                              reinterpret_cast<Ground *>(interactor)->getCollider("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::LEFT_1:
                       if (isPress)
-                          if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
+                          if (nullptr != interactor)
+                              reinterpret_cast<Ground *>(interactor)->getCollider("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::RIGHT_1:
                       if (isPress)
-                          if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
+                          if (nullptr != interactor)
+                              reinterpret_cast<Ground *>(interactor)->getCollider("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::UP_1:
                       if (isPress)
-                          if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
+                          if (nullptr != interactor)
+                              reinterpret_cast<Ground *>(interactor)->getCollider("sphere").processBoost(key);
                       break;
                   case Mapping_bitset::DOWN_1:
                       if (isPress)
-                          if (nullptr != world)
-                              reinterpret_cast<Ground *>(world)->getSoul("sphere").processBoost(key);
+                          if (nullptr != interactor)
+                              reinterpret_cast<Ground *>(interactor)->getCollider("sphere").processBoost(key);
                       break;
                   default:
                       break;
@@ -154,8 +154,8 @@ class Engine
                       continue;
                   for (int i = 0; i < keyMapping.size(); ++i)
                       checkKey((Mapping_bitset)i, keyMapping.test(i));
-                  if (nullptr != world)
-                      reinterpret_cast<Ground *>(world)->update(deltaCount * 1e-6);
+                  if (nullptr != interactor)
+                      reinterpret_cast<Ground *>(interactor)->update(deltaCount * 1e-6);
               }
           })
     {
@@ -206,7 +206,7 @@ public:
     static float aspect;
     static float nearLimit;
     static float farLimit;
-    static void *world;
+    static void *interactor;
     static double lastShadeTime;
     static double deltaShadeTime;
     static glm::vec3 front;
@@ -214,7 +214,7 @@ public:
     static glm::vec3 right;
     static glm::vec3 eye;
     static glm::vec3 worldUp;
-    static std::bitset<(int)Mapping_bitset::count> keyMapping;
+    static std::bitset<(int)Mapping_bitset::amount> keyMapping;
 
     static Engine &get()
     {
@@ -474,7 +474,7 @@ float Engine::fovy = VIEW_FOV_VERTICAL;
 float Engine::aspect = VIEW_ASPECT_RATE;
 float Engine::nearLimit = VIEW_NEAR_LIMIT;
 float Engine::farLimit = VIEW_FAR_LIMIT;
-void *Engine::world = nullptr;
+void *Engine::interactor = nullptr;
 double Engine::lastShadeTime = 0.0;
 double Engine::deltaShadeTime = 0.0;
 glm::vec3 Engine::front(0.0f, 0.0f, -1.0f);
@@ -482,7 +482,7 @@ glm::vec3 Engine::up(0.0f, 1.0f, 0.0f);
 glm::vec3 Engine::right(1.0f, 0.0f, 0.0f);
 glm::vec3 Engine::eye(EYE_X, EYE_HEIGHT, EYE_Y);
 glm::vec3 Engine::worldUp(0.0f, 1.0f, 0.0f);
-std::bitset<(int)Mapping_bitset::count> Engine::keyMapping{};
+std::bitset<(int)Mapping_bitset::amount> Engine::keyMapping{};
 #endif
 
 #endif

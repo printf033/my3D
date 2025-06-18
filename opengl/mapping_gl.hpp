@@ -40,7 +40,7 @@ enum class Mapping_bitset
     UP_1,
     DOWN_1,
 
-    count
+    amount
 };
 
 #endif

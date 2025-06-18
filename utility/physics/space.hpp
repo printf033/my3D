@@ -3,7 +3,7 @@
 
 // #include <glm/glm.hpp>
 // #include <glm/gtx/intersect.hpp>
-// #include "soul.hpp"
+// #include "collider.hpp"
 
 // class Space : public Animator
 // {
@@ -17,27 +17,27 @@
 //     Space &operator=(const Space &) = delete;
 //     Space(Space &&) = delete;
 //     Space &operator=(Space &&) = delete;
-//     inline void addSoul(const std::string &name, Soul &&soul) { souls_.emplace(name, std::move(soul)); }
-//     inline Soul &getSoul(const std::string &name) { return souls_.at(name); }
+//     inline void addCollider(const std::string &name, Soul &&collider) { souls_.emplace(name, std::move(collider)); }
+//     inline Soul &getCollider(const std::string &name) { return souls_.at(name); }
 //     void update(float deltaTime)
 //     {
 //         for (auto &it : souls_)
 //         {
-//             auto &soul = it.second;
-//             if (glm::length(soul.getVelocity()) > precision)
-//                 LOG_INFO << "speed: " << glm::length(soul.getVelocity());
+//             auto &collider = it.second;
+//             if (glm::length(collider.getVelocity()) > precision)
+//                 LOG_INFO << "speed: " << glm::length(collider.getVelocity());
 //             // 处理与其他soul的碰撞
 //             /////////////////////////////////////////////////
 //             // octree later...
 //             //////////////////////////////////////////////////////////
 //             for (auto &mesh : getMeshes())
 //             {
-//                 if (isColliding(mesh, soul))
+//                 if (isColliding(mesh, collider))
 //                     continue;
 //                 else
 //                 {
 //                     LOG_DEBUG << "collide: " << mesh.getName();////////////
-//                     supportingOffset(mesh, soul);
+//                     supportingOffset(mesh, collider);
 //                 }
 //             }
 //         }
@@ -45,14 +45,14 @@
 
 // private:
 //     // AABB culling
-//     bool noColliding(const Mesh &mesh, const Soul &soul)
+//     bool noColliding(const Mesh &mesh, const Soul &collider)
 //     {
-//         return soul.getMax().x + soul.getPosition().x < mesh.getMin().x ||
-//                soul.getMin().x + soul.getPosition().x > mesh.getMax().x ||
-//                soul.getMax().y + soul.getPosition().y < mesh.getMin().y ||
-//                soul.getMin().y + soul.getPosition().y > mesh.getMax().y ||
-//                soul.getMax().z + soul.getPosition().z < mesh.getMin().z ||
-//                soul.getMin().z + soul.getPosition().z > mesh.getMax().z;
+//         return collider.getMax().x + collider.getPosition().x < mesh.getMin().x ||
+//                collider.getMin().x + collider.getPosition().x > mesh.getMax().x ||
+//                collider.getMax().y + collider.getPosition().y < mesh.getMin().y ||
+//                collider.getMin().y + collider.getPosition().y > mesh.getMax().y ||
+//                collider.getMax().z + collider.getPosition().z < mesh.getMin().z ||
+//                collider.getMin().z + collider.getPosition().z > mesh.getMax().z;
 //     }
 //     // 返回m所受引力加速度
 //     glm::vec3 attraction(float G, float M, float m, float r, const glm::vec3 &direction_m2M)
@@ -63,7 +63,7 @@
 //         return glm::normalize(direction_m2M) * accelerationMagnitude;
 //     }
 //     // 支持力补偿
-//     void supportingOffset(const Mesh &mesh, Soul &soul)
+//     void supportingOffset(const Mesh &mesh, Soul &collider)
 //     {
 //         for (int i = 0; i < mesh.getIndices().size(); i += 3)
 //         {
@@ -75,7 +75,7 @@
 //             auto normal = glm::normalize(glm::cross(edge1, edge2));
 //             glm::vec2 intersection;
 //             float distance = .0f;
-//             if (glm::intersectRayTriangle(soul.getPosition(),
+//             if (glm::intersectRayTriangle(collider.getPosition(),
 //                                           -normal,
 //                                           v0.position,
 //                                           v1.position,
@@ -84,10 +84,10 @@
 //                                           distance) &&
 //                 (distance <= precision && distance >= -precision))
 //             {
-//                 float projection = glm::dot(soul.myAcceleration(), -normal);
+//                 float projection = glm::dot(collider.myAcceleration(), -normal);
 //                 if (projection > 0.0f)
 //                 {
-//                     soul.myAcceleration() += normal * projection;
+//                     collider.myAcceleration() += normal * projection;
 //                     // 弹性碰撞在这里实现
 //                     ////////////////////////////////////////////
 //                 }
